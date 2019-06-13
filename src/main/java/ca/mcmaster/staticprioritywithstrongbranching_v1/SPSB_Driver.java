@@ -7,10 +7,12 @@ package ca.mcmaster.staticprioritywithstrongbranching_v1;
 
 import static ca.mcmaster.staticprioritywithstrongbranching_v1.Constants.*;
 import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.MIP_FILENAME;
+import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.USE_VARIABLE_PRIORITY_LIST;
 import ilog.concert.IloException;
 import ilog.concert.IloLPMatrix;
 import ilog.concert.IloNumVar;
 import ilog.cplex.IloCplex;
+import java.io.File;
 import static java.lang.System.exit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,7 +61,9 @@ public class SPSB_Driver {
         //Note that we only consider the larger of the up or down pseudo cost
         BranchHandler branchHandler = new BranchHandler (getVariables(cplex).values());
         cplex.use( branchHandler);        ;
+        logger.info ("Starting strong branching ...") ;
         cplex.solve ( );
+        logger.info ("Completed strong branching.") ;
         
         Map < String, Double > pseudoCostMap = branchHandler.pseudoCostMap;
         Map < String, Integer > priorityMap =  initializePriorities (  pseudoCostMap);
@@ -68,12 +72,27 @@ public class SPSB_Driver {
         cplex =  new IloCplex();
         cplex.importModel(  MIP_FILENAME);
         Map<String, IloNumVar> newVars = getVariables (  cplex);
-        for ( IloNumVar newVar : newVars.values()) {
-            cplex.setPriority(  newVar , priorityMap.get (newVar.getName()) );
+        
+        if (USE_VARIABLE_PRIORITY_LIST){
+            for ( IloNumVar newVar : newVars.values()) {
+                cplex.setPriority(  newVar , priorityMap.get (newVar.getName()) );
+            }
         }
         
+        
         //solve MIP to completion using dynamic search
-        cplex.solve ( );
+        cplex.setParam(IloCplex.Param.MIP.Strategy.File,  FILE_STRATEGY);  
+        cplex.setParam( IloCplex.Param.Threads,  FOUR*FOUR*TWO);
+        for (int hours=ZERO; hours < FOUR*HUNDRED; hours ++){            
+            if (isHaltFilePresent()) break;
+            cplex.setParam( IloCplex.Param.TimeLimit, SIXTY *SIXTY);
+            cplex.solve ( );
+            logger.info ("," + cplex.getBestObjValue() +
+                         ","  + cplex.getObjValue() + 
+                         ","  +cplex.getNnodes64() + 
+                         ","  +cplex.getNnodesLeft64()) ;
+        }
+        
         
         System.out.println("Solution status : "+ cplex.getStatus()) ;
         
@@ -114,4 +133,10 @@ public class SPSB_Driver {
         
         return result;
     }
+    
+    public static boolean isHaltFilePresent (){
+        File file = new File("haltfile.txt");         
+        return file.exists();
+    }
+        
 }
