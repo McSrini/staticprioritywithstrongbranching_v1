@@ -11,7 +11,7 @@ package ca.mcmaster.staticprioritywithstrongbranching_v1;
  */
 public class Parameters {
      
-    public static final boolean USE_VARIABLE_PRIORITY_LIST = false;
+    public static final boolean USE_PURE_CPLEX = false;
     
     public static final int  USE_PRIORITY_LIST_FOR_HOURS = 1;
     
@@ -22,15 +22,16 @@ public class Parameters {
     //public static final String MIP_FILENAME = "2club200v.pre.lp";
     //public static final String MIP_FILENAME = "F:\\temporary files here\\2club200v.pre.lp";
     
-    //public static final String MIP_FILENAME = "p6b.pre.lp";
+    public static final String MIP_FILENAME = "p6b.pre.lp";
     //public static final String MIP_FILENAME = "F:\\temporary files here\\p6b.pre.lp";
     
     
     //public static final String MIP_FILENAME = "ds.pre.lp";
     //public static final String MIP_FILENAME = "F:\\temporary files here\\ds.pre.lp";
      
-    public static final String MIP_FILENAME = "probportfolio.pre.lp";
+    //public static final String MIP_FILENAME = "probportfolio.pre.lp";
     //public static final String MIP_FILENAME = "F:\\temporary files here\\probportfolio.pre.lp";
      
      
+  
 }

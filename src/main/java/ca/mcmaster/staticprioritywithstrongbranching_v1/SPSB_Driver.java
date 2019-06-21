@@ -6,9 +6,7 @@
 package ca.mcmaster.staticprioritywithstrongbranching_v1;
 
 import static ca.mcmaster.staticprioritywithstrongbranching_v1.Constants.*; 
-import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.MIP_FILENAME;
-import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.PERF_VARIABILITY_RANDOM_GENERATOR;
-import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.USE_VARIABLE_PRIORITY_LIST;
+import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.*; 
 import ilog.concert.IloException;
 import ilog.concert.IloLPMatrix;
 import ilog.concert.IloNumVar;
@@ -23,8 +21,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
-import org.apache.log4j.RollingFileAppender;
-import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.USE_PRIORITY_LIST_FOR_HOURS;
+import org.apache.log4j.RollingFileAppender; 
 
 /**
  *
@@ -51,6 +48,9 @@ public class SPSB_Driver {
     } 
     
     public static void main(String[] args) throws Exception{
+        
+        printParameters();
+                
         //read in the MIP
         cplex =  new IloCplex();
         cplex.importModel(  MIP_FILENAME);
@@ -81,7 +81,7 @@ public class SPSB_Driver {
         cplex.importModel(  MIP_FILENAME);
         Map<String, IloNumVar> newVars = getVariables (  cplex);
         
-        if (USE_VARIABLE_PRIORITY_LIST){
+        if (!USE_PURE_CPLEX){
             for ( IloNumVar newVar : newVars.values()) {
                 cplex.setPriority(  newVar , priorityMap.get (newVar.getName()) );
             }
@@ -103,7 +103,7 @@ public class SPSB_Driver {
             if (cplex.getStatus().equals( IloCplex.Status.Infeasible)) break;
             if (cplex.getStatus().equals( IloCplex.Status.Optimal)) break;
             
-            if (USE_PRIORITY_LIST_FOR_HOURS==hours && Parameters.USE_VARIABLE_PRIORITY_LIST) {
+            if (USE_PRIORITY_LIST_FOR_HOURS==hours && !Parameters.USE_PURE_CPLEX) {
                 final IloNumVar[] emptyVarArray = new IloNumVar[]{};
                 cplex.delPriorities(  newVars.values().toArray(emptyVarArray));
             }
@@ -188,4 +188,16 @@ public class SPSB_Driver {
         return file.exists();
     }
         
+    private static void printParameters (){
+        
+        logger.info ("USE_PURE_CPLEX "+ USE_PURE_CPLEX) ;
+        logger.info ("USE_PRIORITY_LIST_FOR_HOURS "+ USE_PRIORITY_LIST_FOR_HOURS) ;
+        
+        logger.info (" PERF_VARIABILITY_RANDOM_SEED "+ PERF_VARIABILITY_RANDOM_SEED ) ;
+        //logger.info ("  "+  ) ;
+        logger.info (" MIP_FILENAME "+  MIP_FILENAME) ;
+       
+     
+        
+    }
 }
