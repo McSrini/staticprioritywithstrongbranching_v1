@@ -5,8 +5,9 @@
  */
 package ca.mcmaster.staticprioritywithstrongbranching_v1;
 
-import static ca.mcmaster.staticprioritywithstrongbranching_v1.Constants.*;
+import static ca.mcmaster.staticprioritywithstrongbranching_v1.Constants.*; 
 import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.MIP_FILENAME;
+import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.PERF_VARIABILITY_RANDOM_GENERATOR;
 import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.USE_VARIABLE_PRIORITY_LIST;
 import ilog.concert.IloException;
 import ilog.concert.IloLPMatrix;
@@ -15,6 +16,7 @@ import ilog.cplex.IloCplex;
 import java.io.File;
 import static java.lang.System.exit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,7 @@ import java.util.TreeMap;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.RollingFileAppender;
+import static ca.mcmaster.staticprioritywithstrongbranching_v1.Parameters.USE_PRIORITY_LIST_FOR_HOURS;
 
 /**
  *
@@ -65,10 +68,15 @@ public class SPSB_Driver {
         cplex.solve ( );
         logger.info ("Completed strong branching.") ;
         
-        Map < String, Double > pseudoCostMap = branchHandler.pseudoCostMap;
-        Map < String, Integer > priorityMap =  initializePriorities (  pseudoCostMap);
+        Map < String, Double > pseudoCostMapPrimary = branchHandler.pseudoCostMapPrimary;
+        Map < String, Double > pseudoCostMapSecondary = branchHandler.pseudoCostMapSecondary;
+        Map < String, Integer > priorityMap =  initializePriorities (  pseudoCostMapPrimary, pseudoCostMapSecondary);
         
-        //read in the MIP again, and this time set static priority list for branching
+        
+        //close this cplex
+        cplex.end();
+        
+        //read in the MIP again, and this time set static priority list for branching        
         cplex =  new IloCplex();
         cplex.importModel(  MIP_FILENAME);
         Map<String, IloNumVar> newVars = getVariables (  cplex);
@@ -83,7 +91,7 @@ public class SPSB_Driver {
         //solve MIP to completion using dynamic search
         cplex.setParam(IloCplex.Param.MIP.Strategy.File,  FILE_STRATEGY);  
         cplex.setParam( IloCplex.Param.Threads,  FOUR*FOUR*TWO);
-        for (int hours=ZERO; hours < FOUR*HUNDRED; hours ++){            
+        for (int hours=ZERO; ; hours ++){            
             if (isHaltFilePresent()) break;
             cplex.setParam( IloCplex.Param.TimeLimit, SIXTY *SIXTY);
             cplex.solve ( );
@@ -91,12 +99,22 @@ public class SPSB_Driver {
                          ","  + cplex.getObjValue() + 
                          ","  +cplex.getNnodes64() + 
                          ","  +cplex.getNnodesLeft64()) ;
+            
+            if (cplex.getStatus().equals( IloCplex.Status.Infeasible)) break;
+            if (cplex.getStatus().equals( IloCplex.Status.Optimal)) break;
+            
+            if (USE_PRIORITY_LIST_FOR_HOURS==hours && Parameters.USE_VARIABLE_PRIORITY_LIST) {
+                final IloNumVar[] emptyVarArray = new IloNumVar[]{};
+                cplex.delPriorities(  newVars.values().toArray(emptyVarArray));
+            }
         }
         
-        
+        logger.info("Solution status : "+ cplex.getStatus()) ;
         System.out.println("Solution status : "+ cplex.getStatus()) ;
         
     }
+    
+    
     
         
     private static Map<String, IloNumVar> getVariables (IloCplex cplex) throws IloException{
@@ -109,32 +127,63 @@ public class SPSB_Driver {
         return result;
     }
     
-    private static Map < String, Integer > initializePriorities ( Map < String, Double > pseudoCostMap) {
+    private static Map < String, Integer > initializePriorities ( 
+            Map < String, Double > pseudoCostMapPrimary,
+            Map < String, Double > pseudoCostMapSecondary) {
         Map < String, Integer > result = new HashMap < String, Integer > ();
         
         TreeMap <  Double, List<String> > invertedPseudoCostMap = new TreeMap <  Double, List<String> >();
-        for (Map.Entry < String, Double > entry :pseudoCostMap.entrySet()){
-            List<String> currentList = invertedPseudoCostMap.get (entry.getValue()) ;
+        for (Map.Entry < String, Double > entry :pseudoCostMapPrimary.entrySet()){
+            double thisVal = - entry.getValue();
+            List<String> currentList = invertedPseudoCostMap.get (thisVal) ;
             if (currentList==null)  currentList = new ArrayList();
             currentList.add (entry.getKey());
-            invertedPseudoCostMap.put (entry.getValue(), currentList) ;
+            invertedPseudoCostMap.put (thisVal, currentList) ;
         }
         
         int currentPriority = ONE;
         for (Map.Entry<  Double, List<String> > entry : invertedPseudoCostMap.entrySet()){
             List<String> vars = entry.getValue() ;
-            //all these vars have same priority
-            for (String varName : vars ){
+             
+            //arange vars by decreasing order of secondary psedudo costs
+            List<String> reArrangedVars = oredrBySecondaryPseduoCost(vars,   pseudoCostMapSecondary) ;
+            
+            for (String varName : reArrangedVars ){
                 result.put (varName, currentPriority) ;
-            }
-         
-            currentPriority++;
+                currentPriority++;
+            }        
+           
         }
         
         return result;
     }
     
-    public static boolean isHaltFilePresent (){
+    private static List<String>   oredrBySecondaryPseduoCost( List<String> vars,  Map < String, Double > pseudoCostMapSecondary) {
+        List<String> reArrangedVars = new ArrayList<String> ();
+        
+        TreeMap <  Double, List<String> > invertedPseudoCostMap = new TreeMap <  Double, List<String> >();
+        for (Map.Entry < String, Double > entry :pseudoCostMapSecondary.entrySet()){
+            
+            if (! vars.contains (entry.getKey()) ) continue;
+            
+            double thisVal = - entry.getValue();
+            List<String> currentList = invertedPseudoCostMap.get (thisVal) ;
+            if (currentList==null)  currentList = new ArrayList();
+            currentList.add (entry.getKey());
+            invertedPseudoCostMap.put (thisVal, currentList) ;
+        }
+        
+        for (List < String > orderedVars :invertedPseudoCostMap.values()){
+            
+            Collections.shuffle(orderedVars ,  PERF_VARIABILITY_RANDOM_GENERATOR);
+            
+            reArrangedVars.addAll(orderedVars );
+        }
+        
+        return  reArrangedVars;
+    }
+    
+    private static boolean isHaltFilePresent (){
         File file = new File("haltfile.txt");         
         return file.exists();
     }

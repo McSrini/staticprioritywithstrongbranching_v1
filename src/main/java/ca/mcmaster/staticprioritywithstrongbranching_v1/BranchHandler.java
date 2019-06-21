@@ -22,7 +22,8 @@ import java.util.Set;
 public class BranchHandler extends BranchCallback{
     
     private Collection<IloNumVar> variableList ;
-    public Map < String, Double > pseudoCostMap= new HashMap < String, Double > ( );
+    public Map < String, Double > pseudoCostMapPrimary= new HashMap < String, Double > ( );
+    public Map < String, Double > pseudoCostMapSecondary= new HashMap < String, Double > ( );
             
     public BranchHandler ( Collection<IloNumVar> vars) {
         variableList= vars;
@@ -34,8 +35,11 @@ public class BranchHandler extends BranchCallback{
             for (IloNumVar var : variableList ){
                 double downPseudoCost = Math.abs ( getDownPseudoCost(  var));
                 double upPseudoCost =  Math.abs ( getUpPseudoCost(  var));
-                double pseudoCost = Math.max (downPseudoCost,upPseudoCost );
-                pseudoCostMap.put (var.getName(), pseudoCost) ;
+                double pseudoCostMax = Math.max (downPseudoCost,upPseudoCost );
+                double pseudoCostMin = Math.min (downPseudoCost,upPseudoCost );
+                pseudoCostMapPrimary.put (var.getName(), pseudoCostMax) ;
+                pseudoCostMapSecondary.put (var.getName(), pseudoCostMin) ;
+                
             }
             
             //done
